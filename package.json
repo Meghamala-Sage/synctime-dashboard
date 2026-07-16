@@ -2,9 +2,13 @@
   "name": "synctime-dashboard",
   "version": "1.0.0",
   "private": true,
-  "scripts": {
-    "start": "webpack serve --port 8500 --open",
-    "build": "webpack"
+  
+"scripts": {
+    "start": "webpack serve --env standalone --mode development --port 8500 --open",
+    "start:mfe": "webpack serve --env mfe --mode development --port 8500 --open",
+    "build": "webpack --env standalone --mode production",
+    "build:mfe": "webpack --env mfe --mode production"
+
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.0.0",
@@ -30,3 +34,4 @@
     "webpack-dev-server": "^4.15.0"
   }
 }
+
