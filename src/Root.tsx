@@ -1,12 +1,20 @@
 import React from "react";
 import { Provider } from "react-redux";
 import { store } from "./store/store";
-import Router from "./router";
+import AppRouter from "./router";
 
-const Root = () => {
+export interface RootProps {
+  /**
+   * Admin Portal can pass this later.
+   * Local dev should keep it empty.
+   */
+  basePath?: string;
+}
+
+const Root: React.FC<RootProps> = ({ basePath = "" }) => {
   return (
     <Provider store={store}>
-      <Router />
+      <AppRouter basename={basePath} />
     </Provider>
   );
 };
