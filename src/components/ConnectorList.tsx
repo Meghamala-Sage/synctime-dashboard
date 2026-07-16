@@ -1,40 +1,33 @@
-import React, { useEffect } from "react";
-import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { setConnectors } from "../store/syncTimesSlice";
-import { syncTimeApi  } from "../api/syncTimeApi";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import type { ConnectorConfig } from "../shared/types";
+import { getConnectors } from "../api/syncTimeApi";
 
-const ConnectorList = () => {
-  const dispatch = useAppDispatch();
-  const navigate = useNavigate();
-
-  const { connectors, loading, error } = useAppSelector(
-    (state) => state.syncTimes
-  );
+export default function ConnectorList() {
+  const [connectors, setConnectors] = useState<ConnectorConfig[]>([]);
 
   useEffect(() => {
-    const load = async () => {
-      const data = await syncTimeApi.getConnectors();
-      dispatch(setConnectors(data));
-    };
-    load();
-  }, [dispatch]);
-
-  if (loading) return <p>Loading...</p>;
-  if (error) return <p>Error loading connectors</p>;
+    getConnectors().then(setConnectors);
+  }, []);
 
   return (
-    <div>
+    <section>
       <h2>Connectors</h2>
-      {connectors.map((c: any) => (
-        <div key={c.id}>
-          <button onClick={() => navigate(`/connector/${c.id}`)}>
-            {c.displayName}
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-};
+      <p>Select a connector to edit its dev03 SyncTimes parameter.</p>
 
-export default ConnectorList;
+      {connectors.length === 0 && <p>No connectors found.</p>}
+
+      <ul>
+        {connectors.map((connector) => (
+          <li key={connector.id} style={{ marginBottom: 12 }}>
+            <Link to={`/connector/${connector.id}`}>
+              {connector.displayName}
+            </Link>
+            <br />
+            <small>{connector.parameterName}</small>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

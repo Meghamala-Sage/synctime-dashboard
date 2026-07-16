@@ -1,59 +1,62 @@
-export const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"] as const;
-export type DayOfWeek = typeof DAYS[number];
-export type WeeklySchedule = Record<DayOfWeek, string>;
+export type ConnectorId = "ob" | "obbarclays" | "nordigen";
+export type EnvironmentId = "dev03";
 
-export type Claims = Record<string, unknown> & {
-  sub?: string; email?: string; name?: string;
-  roles?: string[]; groups?: string[]; permissions?: string[];
-};
+export type Weekday =
+  | "Monday"
+  | "Tuesday"
+  | "Wednesday"
+  | "Thursday"
+  | "Friday"
+  | "Saturday"
+  | "Sunday";
+
+export type SyncTimes = Record<Weekday, string>;
+
+export interface ConnectorConfig {
+  id: ConnectorId;
+  displayName: string;
+  parameterName: string;
+}
+
+/**
+ * Keep these because existing auth/AuthContext.tsx and auth/guards.tsx import them.
+ * Adjust fields later if your host/Admin Portal passes more claims.
+ */
+export interface Claims {
+  sub?: string;
+  name?: string;
+  email?: string;
+  preferred_username?: string;
+  roles?: string[];
+  permissions?: string[];
+  [key: string]: unknown;
+}
 
 export interface HostAuth {
-  token?: string;
+  accessToken?: string;
+  idToken?: string;
   claims?: Claims;
-  getAccessToken?: () => string | Promise<string>;
+  isAuthenticated?: boolean;
+  login?: () => void;
+  logout?: () => void;
 }
 
-export interface HostProps {
-  domElement?: Element;
-  domElementGetter?: () => Element;
-  routeBase?: string;
-  apiBaseUrl?: string;
-  environment?: "dev" | "qa" | "pre" | "prod";
-  auth?: HostAuth;
+export interface UpdateSyncTimesRequest {
+  connector: ConnectorId;
+  environment: EnvironmentId;
+  syncTimes: SyncTimes;
+  reason?: string;
+  triggerMode?: "none" | "invoke-listener";
 }
 
-export interface Connector {
-  id: string;
-  code: string;
-  displayName: string;
-  enabled: boolean;
-}
-
-export interface SyncSchedule {
-  connectorId: string;
-  version?: string;
-  timezone: "UTC";
-  weekly: WeeklySchedule;
-  updatedBy?: string;
-  updatedAt?: string;
-}
-
-export interface SyncStatus {
-  connectorId: string;
-  currentStartTime?: string;
-  lastAppliedAt?: string;
-  lastResult: "Unknown" | "Applied" | "Pending" | "Failed";
-  message?: string;
-}
-
-export interface PreviewRun {
-  day: DayOfWeek;
-  proposedStartTime: string;
-  effectiveDateUtc?: string;
-}
-
-export interface SchedulePreview {
-  connectorId: string;
-  nextRuns: PreviewRun[];
-  warnings: string[];
+export interface UpdateSyncTimesResponse {
+  message: string;
+  connector: ConnectorId;
+  environment: EnvironmentId;
+  parameterName: string;
+  version?: number;
+  previousValue?: string;
+  currentValue: string;
+  triggerMode: "none" | "invoke-listener";
+  listenerInvokeStatus?: number;
 }
