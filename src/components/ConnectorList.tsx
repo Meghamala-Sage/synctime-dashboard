@@ -1,11 +1,19 @@
 import React from "react";
-import ConnectorList from "../components/ConnectorList";
+import { Link } from "react-router-dom";
+import { localConnectors } from "../api/syncTimeApi";
 
-export default function DashboardPage() {
+export default function ConnectorList() {
   return (
-    <section style={{ padding: 24 }}>
-      <h1>SyncTime Dashboard</h1>
-      <ConnectorList />
-    </section>
+    <div>
+      <h2>Connectors</h2>
+
+      {localConnectors.map((c) => (
+        <div key={c.id}>
+          <Link to={`/connector/${c.id}`}>
+            {c.displayName}
+          </Link>
+        </div>
+      ))}
+    </div>
   );
 }

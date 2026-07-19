@@ -1,4 +1,5 @@
 export type ConnectorId = "ob" | "obbarclays" | "nordigen";
+
 export type EnvironmentId = "dev03";
 
 export type Weekday =
@@ -18,6 +19,24 @@ export interface ConnectorConfig {
   parameterName: string;
 }
 
+export interface UpdateSyncTimesResponse {
+  message: string;
+  connector: ConnectorId;
+  environment: EnvironmentId;
+  parameterName: string;
+  currentValue: string;
+  triggerMode: "none" | "invoke-listener";
+  version?: number;
+  previousValue?: string;
+  listenerInvokeStatus?: number;
+}
+
+/**
+ * Auth / host app claims.
+ *
+ * This is intentionally flexible because Admin Portal / Okta / host shell
+ * may pass claims with different shapes.
+ */
 export interface Claims {
   sub?: string;
   name?: string;
@@ -25,9 +44,13 @@ export interface Claims {
   preferred_username?: string;
   roles?: string[];
   permissions?: string[];
+  groups?: string[];
   [key: string]: unknown;
 }
 
+/**
+ * Auth context passed from host app or mocked locally.
+ */
 export interface HostAuth {
   accessToken?: string;
   idToken?: string;
@@ -35,16 +58,4 @@ export interface HostAuth {
   isAuthenticated?: boolean;
   login?: () => void;
   logout?: () => void;
-}
-
-export interface UpdateSyncTimesResponse {
-  message: string;
-  connector: ConnectorId;
-  environment: EnvironmentId;
-  parameterName: string;
-  version?: number;
-  previousValue?: string;
-  currentValue: string;
-  triggerMode: "none" | "invoke-listener";
-  listenerInvokeStatus?: number;
 }

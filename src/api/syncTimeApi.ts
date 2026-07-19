@@ -1,38 +1,75 @@
-import type { SyncTimes, Weekday } from "./types";
+import type {
+  ConnectorConfig,
+  ConnectorId,
+  EnvironmentId,
+  SyncTimes,
+  UpdateSyncTimesResponse
+} from "../shared/types";
 
-export const WEEKDAYS: Weekday[] = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday"
+import { DEFAULT_SYNC_TIMES } from "../shared/validation";
+
+const API_BASE_URL =
+  process.env.REACT_APP_SYNC_TIME_API_BASE_URL || "";
+
+export const localConnectors: ConnectorConfig[] = [
+  {
+    id: "ob",
+    displayName: "Open Banking",
+    parameterName: "/bnkc-ob-dev03/SyncTimes"
+  },
+  {
+    id: "obbarclays",
+    displayName: "OB Barclays",
+    parameterName: "/bnkc-obbarclays-dev03/SyncTimes"
+  },
+  {
+    id: "nordigen",
+    displayName: "Nordigen",
+    parameterName: "/bnkc-nordigen-dev03/SyncTimes"
+  }
 ];
 
-export const DEFAULT_SYNC_TIMES: SyncTimes = {
-  Monday: "00:00:01.000",
-  Tuesday: "00:00:01.000",
-  Wednesday: "00:00:01.000",
-  Thursday: "00:00:01.000",
-  Friday: "00:00:01.000",
-  Saturday: "00:00:01.000",
-  Sunday: "00:00:01.000"
-};
-
-export function isValidSyncTime(value: string): boolean {
-  return /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}$/.test(value);
+export async function getConnectors(): Promise<ConnectorConfig[]> {
+  return localConnectors;
 }
 
-export function validateSyncTimes(syncTimes: SyncTimes): string[] {
-  const errors: string[] = [];
+export async function updateSyncTimes(
+  connector: ConnectorId,
+  environment: EnvironmentId,
+  syncTimes: SyncTimes,
+  reason: string
+): Promise<UpdateSyncTimesResponse> {
+  if (!API_BASE_URL) {
+    console.log("Mock update:", { connector, environment, syncTimes, reason });
 
-  for (const day of WEEKDAYS) {
-    if (!syncTimes[day]) errors.push(`${day} is required`);
-    else if (!isValidSyncTime(syncTimes[day])) {
-      errors.push(`${day} must be HH:mm:ss.SSS, e.g. 07:00:00.000`);
-    }
+    return {
+      message: "Mock update success",
+      connector,
+      environment,
+      parameterName: `/bnkc-${connector}-${environment}/SyncTimes`,
+      currentValue: JSON.stringify(syncTimes),
+      triggerMode: "none"
+    };
   }
 
-  return errors;
+  const res = await fetch(`${API_BASE_URL}/sync-times`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      connector,
+      environment,
+      syncTimes,
+      reason
+    })
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.message || "Update failed");
+  }
+
+  return data;
 }

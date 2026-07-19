@@ -1,43 +1,59 @@
-import React, { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import React, { useState } from "react";
+import { useParams } from "react-router-dom";
 
-import type { ConnectorId, SyncTimes, Weekday } from "../shared/types";
-import { DEFAULT_SYNC_TIMES, WEEKDAYS, validateSyncTimes } from "../shared/validation";
-import { localConnectors, updateSyncTimes } from "../api/syncTimeApi";
+import type {
+  ConnectorId,
+  SyncTimes,
+  Weekday
+} from "../shared/types";
 
-const ENVIRONMENT = "dev03" as const;
+import {
+  DEFAULT_SYNC_TIMES,
+  WEEKDAYS,
+  validateSyncTimes
+} from "../shared/validation";
 
-function isConnectorId(value: string | undefined): value is ConnectorId {
-  return value === "ob" || value === "obbarclays" || value === "nordigen";
-}
+import {
+  localConnectors,
+  updateSyncTimes
+} from "../api/syncTimeApi";
+
+const ENV = "dev03";
 
 export default function ConnectorPage() {
   const { id } = useParams();
-  const connectorId: ConnectorId = isConnectorId(id) ? id : "ob";
 
-  const connector = useMemo(
-    () => localConnectors.find((c) => c.id === connectorId)!,
-    [connectorId]
-  );
+  const connectorId = (id as ConnectorId) || "ob";
 
-  const [syncTimes, setSyncTimes] = useState<SyncTimes>(DEFAULT_SYNC_TIMES);
+  const connector = localConnectors.find(
+    (c) => c.id === connectorId
+  )!;
+
+  const [syncTimes, setSyncTimes] =
+    useState<SyncTimes>(DEFAULT_SYNC_TIMES);
+
   const [reason, setReason] = useState("");
-  const [triggerMode, setTriggerMode] = useState<"none" | "invoke-listener">("none");
-  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   function updateDay(day: Weekday, value: string) {
-    setSyncTimes((current) => ({ ...current, [day]: value }));
+    setSyncTimes((prev) => ({
+      ...prev,
+      [day]: value
+    }));
   }
 
-  async function onSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setMessage("");
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
     setError("");
+    setMessage("");
 
     const errors = validateSyncTimes(syncTimes);
-    if (!reason.trim()) errors.push("Reason is required");
+
+    if (!reason) {
+      errors.push("Reason required");
+    }
 
     if (errors.length) {
       setError(errors.join(", "));
@@ -45,82 +61,47 @@ export default function ConnectorPage() {
     }
 
     try {
-      setSaving(true);
-      const response = await updateSyncTimes(
+      const res = await updateSyncTimes(
         connectorId,
-        ENVIRONMENT,
+        ENV as any,
         syncTimes,
-        reason,
-        triggerMode
+        reason
       );
 
-      setMessage(`Updated ${response.parameterName}. Version: ${response.version ?? "local/mock"}`);
-    } catch (e: any) {
-      setError(e.message || "Update failed");
-    } finally {
-      setSaving(false);
+      setMessage("✅ Updated successfully");
+    } catch (err: any) {
+      setError(err.message);
     }
   }
 
   return (
-    <section style={{ padding: 24 }}>
-      <Link to="/">← Back to connectors</Link>
+    <div>
+      <h2>{connector.displayName}</h2>
 
-      <h1>{connector.displayName}</h1>
-      <p><strong>Environment:</strong> {ENVIRONMENT}</p>
-      <p><strong>Parameter:</strong> {connector.parameterName}</p>
-
-      <form onSubmit={onSubmit}>
-        <fieldset disabled={saving}>
-          <legend>Weekly SyncTimes</legend>
-
-          {WEEKDAYS.map((day) => (
-            <div key={day} style={{ marginBottom: 12 }}>
-              <label style={{ display: "block", fontWeight: 600 }}>{day}</label>
-              <input
-                value={syncTimes[day]}
-                onChange={(e) => updateDay(day, e.target.value)}
-                placeholder="HH:mm:ss.SSS"
-                style={{ padding: 8, width: 180 }}
-              />
-            </div>
-          ))}
-
-          <div style={{ marginTop: 16 }}>
-            <label style={{ display: "block", fontWeight: 600 }}>Reason</label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="Example: Move sync due to bank downtime"
-              rows={3}
-              style={{ width: "100%", maxWidth: 640 }}
+      <form onSubmit={handleSubmit}>
+        {WEEKDAYS.map((day) => (
+          <div key={day}>
+            <label>{day}</label>
+            <input
+              value={syncTimes[day]}
+              onChange={(e) =>
+                updateDay(day, e.target.value)
+              }
             />
           </div>
+        ))}
 
-          <div style={{ marginTop: 16 }}>
-            <label style={{ display: "block", fontWeight: 600 }}>Trigger mode</label>
-            <select
-              value={triggerMode}
-              onChange={(e) => setTriggerMode(e.target.value as "none" | "invoke-listener")}
-            >
-              <option value="none">none — rely on existing listener / cron</option>
-              <option value="invoke-listener">invoke-listener — only if backend is configured</option>
-            </select>
-          </div>
+        <textarea
+          placeholder="Reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
 
-          <button type="submit" style={{ marginTop: 24 }}>
-            {saving ? "Saving..." : "Update SyncTimes"}
-          </button>
-        </fieldset>
+        <button type="submit">Update</button>
       </form>
 
-      {message && <p style={{ color: "green" }}>{message}</p>}
+      {message && <p>{message}</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
-
-      <h3>Preview JSON written to Parameter Store</h3>
-      <pre style={{ background: "#f4f4f4", padding: 16 }}>
-        {JSON.stringify(syncTimes, null, 2)}
-      </pre>
-    </section>
+    </div>
   );
 }
