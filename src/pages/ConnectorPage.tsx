@@ -2,11 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import type { ConnectorId, SyncTimes, Weekday } from "../shared/types";
-import {
-  DEFAULT_SYNC_TIMES,
-  WEEKDAYS,
-  validateSyncTimes
-} from "../shared/validation";
+import { DEFAULT_SYNC_TIMES, WEEKDAYS, validateSyncTimes } from "../shared/validation";
 import { localConnectors, updateSyncTimes } from "../api/syncTimeApi";
 
 const ENVIRONMENT = "dev03" as const;
@@ -26,18 +22,13 @@ export default function ConnectorPage() {
 
   const [syncTimes, setSyncTimes] = useState<SyncTimes>(DEFAULT_SYNC_TIMES);
   const [reason, setReason] = useState("");
-  const [triggerMode, setTriggerMode] =
-    useState<"none" | "invoke-listener">("none");
-
+  const [triggerMode, setTriggerMode] = useState<"none" | "invoke-listener">("none");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   function updateDay(day: Weekday, value: string) {
-    setSyncTimes((current) => ({
-      ...current,
-      [day]: value
-    }));
+    setSyncTimes((current) => ({ ...current, [day]: value }));
   }
 
   async function onSubmit(event: React.FormEvent) {
@@ -48,14 +39,13 @@ export default function ConnectorPage() {
     const errors = validateSyncTimes(syncTimes);
     if (!reason.trim()) errors.push("Reason is required");
 
-    if (errors.length > 0) {
+    if (errors.length) {
       setError(errors.join(", "));
       return;
     }
 
     try {
       setSaving(true);
-
       const response = await updateSyncTimes(
         connectorId,
         ENVIRONMENT,
@@ -64,11 +54,7 @@ export default function ConnectorPage() {
         triggerMode
       );
 
-      setMessage(
-        `Updated ${response.parameterName}. Version: ${
-          response.version ?? "local/mock"
-        }`
-      );
+      setMessage(`Updated ${response.parameterName}. Version: ${response.version ?? "local/mock"}`);
     } catch (e: any) {
       setError(e.message || "Update failed");
     } finally {
@@ -90,9 +76,7 @@ export default function ConnectorPage() {
 
           {WEEKDAYS.map((day) => (
             <div key={day} style={{ marginBottom: 12 }}>
-              <label style={{ display: "block", fontWeight: 600 }}>
-                {day}
-              </label>
+              <label style={{ display: "block", fontWeight: 600 }}>{day}</label>
               <input
                 value={syncTimes[day]}
                 onChange={(e) => updateDay(day, e.target.value)}
@@ -103,9 +87,7 @@ export default function ConnectorPage() {
           ))}
 
           <div style={{ marginTop: 16 }}>
-            <label style={{ display: "block", fontWeight: 600 }}>
-              Reason
-            </label>
+            <label style={{ display: "block", fontWeight: 600 }}>Reason</label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -116,21 +98,13 @@ export default function ConnectorPage() {
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <label style={{ display: "block", fontWeight: 600 }}>
-              Trigger mode
-            </label>
+            <label style={{ display: "block", fontWeight: 600 }}>Trigger mode</label>
             <select
               value={triggerMode}
-              onChange={(e) =>
-                setTriggerMode(e.target.value as "none" | "invoke-listener")
-              }
+              onChange={(e) => setTriggerMode(e.target.value as "none" | "invoke-listener")}
             >
-              <option value="none">
-                none — rely on existing listener / cron
-              </option>
-              <option value="invoke-listener">
-                invoke-listener — only if backend Lambda is configured
-              </option>
+              <option value="none">none — rely on existing listener / cron</option>
+              <option value="invoke-listener">invoke-listener — only if backend is configured</option>
             </select>
           </div>
 

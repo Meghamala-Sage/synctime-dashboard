@@ -16,7 +16,6 @@ console.log("[SyncTime Dashboard] entry loaded");
 
 function domElementGetter(props?: RootProps & { domElementId?: string }): HTMLElement {
   const domElementId = props?.domElementId || "root";
-
   let element = document.getElementById(domElementId);
 
   if (!element) {
@@ -28,20 +27,11 @@ function domElementGetter(props?: RootProps & { domElementId?: string }): HTMLEl
   return element;
 }
 
-/**
- * single-spa lifecycle mode.
- *
- * Admin Portal/root-config will call:
- * - bootstrap()
- * - mount()
- * - unmount()
- */
 const lifecycles = singleSpaReact({
   React,
   ReactDOMClient,
   rootComponent: Root,
   domElementGetter,
-
   errorBoundary(error: Error) {
     return (
       <div style={{ padding: 24, color: "#b00020" }}>
@@ -56,12 +46,6 @@ export const bootstrap = lifecycles.bootstrap;
 export const mount = lifecycles.mount;
 export const unmount = lifecycles.unmount;
 
-/**
- * Standalone local mode.
- *
- * When running with `npm start`, there is no Admin Portal/root-config,
- * so nobody calls mount(). This block renders the app directly.
- */
 if (!window.singleSpaNavigate) {
   console.log("[SyncTime Dashboard] standalone local render started");
 

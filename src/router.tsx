@@ -1,10 +1,5 @@
 import React from "react";
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate
-} from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import DashboardPage from "./pages/DashboardPage";
 import ConnectorPage from "./pages/ConnectorPage";
@@ -21,8 +16,6 @@ const AppRouter: React.FC<AppRouterProps> = ({ basename = "" }) => {
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/connector/:id" element={<ConnectorPage />} />
-
-        {/* Prevent blank screen on unknown local routes */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

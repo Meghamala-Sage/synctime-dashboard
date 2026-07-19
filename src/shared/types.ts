@@ -18,10 +18,6 @@ export interface ConnectorConfig {
   parameterName: string;
 }
 
-/**
- * Keep these because existing auth/AuthContext.tsx and auth/guards.tsx import them.
- * Adjust fields later if your host/Admin Portal passes more claims.
- */
 export interface Claims {
   sub?: string;
   name?: string;
@@ -39,14 +35,6 @@ export interface HostAuth {
   isAuthenticated?: boolean;
   login?: () => void;
   logout?: () => void;
-}
-
-export interface UpdateSyncTimesRequest {
-  connector: ConnectorId;
-  environment: EnvironmentId;
-  syncTimes: SyncTimes;
-  reason?: string;
-  triggerMode?: "none" | "invoke-listener";
 }
 
 export interface UpdateSyncTimesResponse {

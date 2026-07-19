@@ -12,11 +12,6 @@ body {
   color: #1f2933;
 }
 
-.synctime-dashboard-shell {
-  min-height: 100vh;
-  background: #f6f7f9;
-}
-
 .synctime-dashboard-header {
   background: #ffffff;
   border-bottom: 1px solid #dde2e8;
@@ -25,7 +20,6 @@ body {
 
 .synctime-dashboard-header h1 {
   margin: 0;
-  font-size: 24px;
 }
 
 .synctime-dashboard-header p {
@@ -43,6 +37,7 @@ button {
 
 input,
 textarea,
-button {
+button,
+select {
   font: inherit;
 }

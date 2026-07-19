@@ -28,9 +28,8 @@ export function validateSyncTimes(syncTimes: SyncTimes): string[] {
   const errors: string[] = [];
 
   for (const day of WEEKDAYS) {
-    if (!syncTimes[day]) {
-      errors.push(`${day} is required`);
-    } else if (!isValidSyncTime(syncTimes[day])) {
+    if (!syncTimes[day]) errors.push(`${day} is required`);
+    else if (!isValidSyncTime(syncTimes[day])) {
       errors.push(`${day} must be HH:mm:ss.SSS, e.g. 07:00:00.000`);
     }
   }

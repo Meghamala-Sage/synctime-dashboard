@@ -1,21 +1,31 @@
 import React from "react";
 import { useAuth } from "./AuthContext";
 
-interface GuardProps {
+interface RoleGuardProps {
   children: React.ReactNode;
   requiredRoles?: string[];
+  requiredPermissions?: string[];
 }
 
-export function RoleGuard({ children, requiredRoles = [] }: GuardProps) {
+export function RoleGuard({
+  children,
+  requiredRoles = [],
+  requiredPermissions = []
+}: RoleGuardProps) {
   const { claims } = useAuth();
 
-  const userRoles = claims?.roles || [];
+  const roles = claims?.roles || [];
+  const permissions = claims?.permissions || [];
 
-  const hasAccess =
+  const hasRole =
     requiredRoles.length === 0 ||
-    requiredRoles.some((role) => userRoles.includes(role));
+    requiredRoles.some((role) => roles.includes(role));
 
-  if (!hasAccess) {
+  const hasPermission =
+    requiredPermissions.length === 0 ||
+    requiredPermissions.some((permission) => permissions.includes(permission));
+
+  if (!hasRole || !hasPermission) {
     return <div>Access Denied</div>;
   }
 

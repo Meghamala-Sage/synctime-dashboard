@@ -1,27 +1,11 @@
-import type {
-  APIGatewayProxyEventV2,
-  APIGatewayProxyResultV2
-} from "aws-lambda";
-import {
-  SSMClient,
-  GetParameterCommand,
-  PutParameterCommand
-} from "@aws-sdk/client-ssm";
+import type { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from "aws-lambda";
+import { SSMClient, GetParameterCommand, PutParameterCommand } from "@aws-sdk/client-ssm";
 import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
 
 type Connector = "ob" | "obbarclays" | "nordigen";
 type Environment = "dev03";
 type TriggerMode = "none" | "invoke-listener";
-
-type Weekday =
-  | "Monday"
-  | "Tuesday"
-  | "Wednesday"
-  | "Thursday"
-  | "Friday"
-  | "Saturday"
-  | "Sunday";
-
+type Weekday = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 type SyncTimes = Record<Weekday, string>;
 
 interface UpdateSyncTimesRequest {
@@ -36,16 +20,7 @@ const region = process.env.AWS_REGION || "eu-west-1";
 const ssm = new SSMClient({ region });
 const lambda = new LambdaClient({ region });
 
-const weekdays: Weekday[] = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday"
-];
-
+const weekdays: Weekday[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const allowedConnectors = new Set(["ob", "obbarclays", "nordigen"]);
 const allowedEnvironments = new Set(["dev03"]);
 
@@ -108,13 +83,8 @@ function parseBody(event: APIGatewayProxyEventV2): UpdateSyncTimesRequest {
   const connector = String(parsed.connector || "").toLowerCase() as Connector;
   const environment = String(parsed.environment || "").toLowerCase() as Environment;
 
-  if (!allowedConnectors.has(connector)) {
-    throw new Error(`Unsupported connector: ${parsed.connector}`);
-  }
-
-  if (!allowedEnvironments.has(environment)) {
-    throw new Error(`Unsupported environment: ${parsed.environment}`);
-  }
+  if (!allowedConnectors.has(connector)) throw new Error(`Unsupported connector: ${parsed.connector}`);
+  if (!allowedEnvironments.has(environment)) throw new Error(`Unsupported environment: ${parsed.environment}`);
 
   validateSyncTimes(parsed.syncTimes);
 
@@ -131,9 +101,7 @@ function parameterName(connector: Connector, environment: Environment) {
   return `/bnkc-${connector}-${environment}/SyncTimes`;
 }
 
-export async function handler(
-  event: APIGatewayProxyEventV2
-): Promise<APIGatewayProxyResultV2> {
+export async function handler(event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> {
   try {
     const method = event.requestContext.http.method;
 
@@ -144,21 +112,9 @@ export async function handler(
         environment: "dev03",
         defaultSyncTimes,
         connectors: [
-          {
-            id: "ob",
-            displayName: "Open Banking",
-            parameterName: "/bnkc-ob-dev03/SyncTimes"
-          },
-          {
-            id: "obbarclays",
-            displayName: "OB Barclays",
-            parameterName: "/bnkc-obbarclays-dev03/SyncTimes"
-          },
-          {
-            id: "nordigen",
-            displayName: "Nordigen",
-            parameterName: "/bnkc-nordigen-dev03/SyncTimes"
-          }
+          { id: "ob", displayName: "Open Banking", parameterName: "/bnkc-ob-dev03/SyncTimes" },
+          { id: "obbarclays", displayName: "OB Barclays", parameterName: "/bnkc-obbarclays-dev03/SyncTimes" },
+          { id: "nordigen", displayName: "Nordigen", parameterName: "/bnkc-nordigen-dev03/SyncTimes" }
         ]
       });
     }
@@ -167,14 +123,8 @@ export async function handler(
     const name = parameterName(request.connector, request.environment);
 
     let previousValue: string | undefined;
-
     try {
-      const current = await ssm.send(
-        new GetParameterCommand({
-          Name: name,
-          WithDecryption: false
-        })
-      );
+      const current = await ssm.send(new GetParameterCommand({ Name: name, WithDecryption: false }));
       previousValue = current.Parameter?.Value;
     } catch {
       previousValue = undefined;
@@ -193,24 +143,20 @@ export async function handler(
 
     if (request.triggerMode === "invoke-listener") {
       const functionName = process.env.SYNC_TIME_LISTENER_LAMBDA;
-      if (!functionName) {
-        throw new Error("SYNC_TIME_LISTENER_LAMBDA is not configured");
-      }
+      if (!functionName) throw new Error("SYNC_TIME_LISTENER_LAMBDA is not configured");
 
       const invoke = await lambda.send(
         new InvokeCommand({
           FunctionName: functionName,
           InvocationType: "Event",
-          Payload: Buffer.from(
-            JSON.stringify({
-              source: "synctime-dashboard",
-              connector: request.connector,
-              environment: request.environment,
-              parameterName: name,
-              syncTimes: request.syncTimes,
-              reason: request.reason
-            })
-          )
+          Payload: Buffer.from(JSON.stringify({
+            source: "synctime-dashboard",
+            connector: request.connector,
+            environment: request.environment,
+            parameterName: name,
+            syncTimes: request.syncTimes,
+            reason: request.reason
+          }))
         })
       );
 
