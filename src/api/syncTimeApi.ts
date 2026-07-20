@@ -2,6 +2,7 @@ import type {
   ConnectorConfig,
   ConnectorId,
   EnvironmentId,
+  EventBridgeState,
   SyncTimes,
   UpdateSyncTimesResponse
 } from "../shared/types";
@@ -124,9 +125,55 @@ export async function updateSyncTimes(
   return data as UpdateSyncTimesResponse;
 }
 
+export async function getEventBridgeState(
+  connector: ConnectorId,
+  environment: EnvironmentId
+): Promise<EventBridgeState> {
+  if (!API_BASE_URL) {
+    return { connector, environment, eventRuleName: "", isEnabled: true };
+  }
+
+  const url = `${API_BASE_URL}/eventbridge-state?connector=${encodeURIComponent(connector)}&environment=${encodeURIComponent(environment)}`;
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Failed to fetch EventBridge state");
+  }
+
+  return data as EventBridgeState;
+}
+
+export async function toggleEventBridge(
+  connector: ConnectorId,
+  environment: EnvironmentId,
+  enabled: boolean
+): Promise<EventBridgeState> {
+  if (!API_BASE_URL) {
+    console.log("Local mock toggleEventBridge", { connector, environment, enabled });
+    return { connector, environment, eventRuleName: "", isEnabled: enabled };
+  }
+
+  const response = await fetch(`${API_BASE_URL}/eventbridge-toggle`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ connector, environment, enabled })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Failed to toggle EventBridge");
+  }
+
+  return data as EventBridgeState;
+}
+
 export const syncTimeApi = {
   getConnectors,
   updateSyncTimes,
+  getEventBridgeState,
+  toggleEventBridge,
 
   getSchedule: async (): Promise<{ schedule: SyncTimes }> => ({
     schedule: DEFAULT_SYNC_TIMES

@@ -19,6 +19,13 @@ export interface ConnectorConfig {
   parameterName: string;
 }
 
+export interface EventBridgeState {
+  connector: ConnectorId;
+  environment: EnvironmentId;
+  eventRuleName: string;
+  isEnabled: boolean;
+}
+
 export interface UpdateSyncTimesResponse {
   message: string;
   connector: ConnectorId;
