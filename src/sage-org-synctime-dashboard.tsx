@@ -27,34 +27,53 @@ function domElementGetter(props?: RootProps & { domElementId?: string }): HTMLEl
   return element;
 }
 
-const lifecycles = singleSpaReact({
-  React,
-  ReactDOMClient,
-  rootComponent: Root,
-  domElementGetter,
-  errorBoundary(error: Error) {
-    return (
-      <div style={{ padding: 24, color: "#b00020" }}>
-        <h2>SyncTime Dashboard failed to load</h2>
-        <pre>{error.message}</pre>
-      </div>
-    );
-  }
-} as any);
+// ---------------------------------------------------------------------------
+// MFE lifecycles (used only when mounted by single-spa host)
+// ---------------------------------------------------------------------------
+let bootstrap: unknown;
+let mount: unknown;
+let unmount: unknown;
 
-export const bootstrap = lifecycles.bootstrap;
-export const mount = lifecycles.mount;
-export const unmount = lifecycles.unmount;
+try {
+  const lifecycles = singleSpaReact({
+    React,
+    ReactDOMClient,
+    rootComponent: Root,
+    domElementGetter,
+    errorBoundary(error: Error) {
+      return (
+        <div style={{ padding: 24, color: "#b00020" }}>
+          <h2>SyncTime Dashboard failed to load</h2>
+          <pre>{error.message}</pre>
+        </div>
+      );
+    }
+  } as any);
 
+  bootstrap = lifecycles.bootstrap;
+  mount = lifecycles.mount;
+  unmount = lifecycles.unmount;
+} catch (err) {
+  console.warn("[SyncTime Dashboard] singleSpaReact init error (ignored in standalone):", err);
+}
+
+export { bootstrap, mount, unmount };
+
+// ---------------------------------------------------------------------------
+// Standalone (local dev) render — runs when NOT hosted by single-spa
+// ---------------------------------------------------------------------------
 if (!window.singleSpaNavigate) {
   console.log("[SyncTime Dashboard] standalone local render started");
 
   const container = domElementGetter();
 
   if (!window.__SYNC_TIME_DASHBOARD_LOCAL_ROOT__) {
-    window.__SYNC_TIME_DASHBOARD_LOCAL_ROOT__ =
-      ReactDOMClient.createRoot(container);
+    window.__SYNC_TIME_DASHBOARD_LOCAL_ROOT__ = ReactDOMClient.createRoot(container);
   }
 
-  window.__SYNC_TIME_DASHBOARD_LOCAL_ROOT__.render(<Root />);
+  window.__SYNC_TIME_DASHBOARD_LOCAL_ROOT__.render(
+    <React.StrictMode>
+      <Root />
+    </React.StrictMode>
+  );
 }

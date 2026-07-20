@@ -1,13 +1,5 @@
-import React, {
-  createContext,
-  useContext,
-  useMemo
-} from "react";
-
-import type {
-  Claims,
-  HostAuth
-} from "../shared/types";
+import React, { createContext, useContext, useMemo } from "react";
+import type { Claims, HostAuth } from "../shared/types";
 
 export interface AuthContextValue {
   accessToken?: string;
@@ -37,18 +29,10 @@ const AuthContext = createContext<AuthContextValue>(defaultAuthContext);
 
 interface AuthProviderProps {
   children: React.ReactNode;
-
-  /**
-   * This will be supplied by Admin Portal later.
-   * For local development, it can be omitted.
-   */
   auth?: HostAuth;
 }
 
-export function AuthProvider({
-  children,
-  auth
-}: AuthProviderProps) {
+export function AuthProvider({ children, auth }: AuthProviderProps) {
   const value = useMemo<AuthContextValue>(() => {
     return {
       accessToken: auth?.accessToken,
@@ -60,11 +44,7 @@ export function AuthProvider({
     };
   }, [auth]);
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {

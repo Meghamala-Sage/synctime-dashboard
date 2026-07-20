@@ -8,8 +8,13 @@ import type {
 
 import { DEFAULT_SYNC_TIMES } from "../shared/validation";
 
-const API_BASE_URL =
-  process.env.REACT_APP_SYNC_TIME_API_BASE_URL || "";
+declare global {
+  interface Window {
+    __SYNC_TIME_API_BASE_URL__?: string;
+  }
+}
+
+const API_BASE_URL: string = window.__SYNC_TIME_API_BASE_URL__ || "";
 
 export const localConnectors: ConnectorConfig[] = [
   {
@@ -30,29 +35,73 @@ export const localConnectors: ConnectorConfig[] = [
 ];
 
 export async function getConnectors(): Promise<ConnectorConfig[]> {
-  return localConnectors;
+  if (!API_BASE_URL) {
+    return localConnectors;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/connectors`);
+
+    if (!response.ok) {
+      return localConnectors;
+    }
+
+    const data = await response.json();
+
+    return Array.isArray(data.connectors)
+      ? (data.connectors as ConnectorConfig[])
+      : localConnectors;
+  } catch {
+    return localConnectors;
+  }
+}
+
+export async function getSyncTimes(
+  connector: ConnectorId,
+  environment: EnvironmentId
+): Promise<SyncTimes> {
+  if (!API_BASE_URL) {
+    return { ...DEFAULT_SYNC_TIMES };
+  }
+
+  const url = `${API_BASE_URL}/sync-times?connector=${encodeURIComponent(connector)}&environment=${encodeURIComponent(environment)}`;
+  const response = await fetch(url);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || "Failed to fetch SyncTimes");
+  }
+
+  return data.syncTimes as SyncTimes;
 }
 
 export async function updateSyncTimes(
   connector: ConnectorId,
   environment: EnvironmentId,
   syncTimes: SyncTimes,
-  reason: string
+  reason: string,
+  triggerMode: "none" | "invoke-listener" = "none"
 ): Promise<UpdateSyncTimesResponse> {
   if (!API_BASE_URL) {
-    console.log("Mock update:", { connector, environment, syncTimes, reason });
+    console.log("Local mock updateSyncTimes", {
+      connector,
+      environment,
+      syncTimes,
+      reason,
+      triggerMode
+    });
 
     return {
-      message: "Mock update success",
+      message: "Local mock: SyncTimes updated",
       connector,
       environment,
       parameterName: `/bnkc-${connector}-${environment}/SyncTimes`,
       currentValue: JSON.stringify(syncTimes),
-      triggerMode: "none"
+      triggerMode
     };
   }
 
-  const res = await fetch(`${API_BASE_URL}/sync-times`, {
+  const response = await fetch(`${API_BASE_URL}/sync-times`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -61,15 +110,41 @@ export async function updateSyncTimes(
       connector,
       environment,
       syncTimes,
-      reason
+      reason,
+      triggerMode
     })
   });
 
-  const data = await res.json();
+  const data = await response.json();
 
-  if (!res.ok) {
-    throw new Error(data.message || "Update failed");
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || "Failed to update SyncTimes");
   }
 
-  return data;
+  return data as UpdateSyncTimesResponse;
 }
+
+export const syncTimeApi = {
+  getConnectors,
+  updateSyncTimes,
+
+  getSchedule: async (): Promise<{ schedule: SyncTimes }> => ({
+    schedule: DEFAULT_SYNC_TIMES
+  }),
+
+  preview: async (data: { schedule: SyncTimes }) => ({
+    changes: Object.keys(data.schedule).map((day) => {
+      const typedDay = day as keyof SyncTimes;
+
+      return {
+        day,
+        before: DEFAULT_SYNC_TIMES[typedDay],
+        after: data.schedule[typedDay],
+        changed: DEFAULT_SYNC_TIMES[typedDay] !== data.schedule[typedDay]
+      };
+    })
+  }),
+
+  update: async (data: { schedule: SyncTimes }) =>
+    updateSyncTimes("ob", "dev03", data.schedule, "Legacy update call", "none")
+};

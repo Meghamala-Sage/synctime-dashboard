@@ -31,12 +31,6 @@ export interface UpdateSyncTimesResponse {
   listenerInvokeStatus?: number;
 }
 
-/**
- * Auth / host app claims.
- *
- * This is intentionally flexible because Admin Portal / Okta / host shell
- * may pass claims with different shapes.
- */
 export interface Claims {
   sub?: string;
   name?: string;
@@ -48,9 +42,6 @@ export interface Claims {
   [key: string]: unknown;
 }
 
-/**
- * Auth context passed from host app or mocked locally.
- */
 export interface HostAuth {
   accessToken?: string;
   idToken?: string;

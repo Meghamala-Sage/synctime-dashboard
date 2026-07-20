@@ -1,107 +1,137 @@
-import React, { useState } from "react";
-import { useParams } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { useParams, Link } from "react-router-dom";
 
-import type {
-  ConnectorId,
-  SyncTimes,
-  Weekday
-} from "../shared/types";
+import type { ConnectorId, SyncTimes } from "../shared/types";
+import { localConnectors, getSyncTimes, updateSyncTimes } from "../api/syncTimeApi";
+import { DEFAULT_SYNC_TIMES } from "../shared/validation";
+import SyncTimeEditor from "../components/SyncTimeEditor";
+import PreviewModal from "../components/PreviewModal";
 
-import {
-  DEFAULT_SYNC_TIMES,
-  WEEKDAYS,
-  validateSyncTimes
-} from "../shared/validation";
-
-import {
-  localConnectors,
-  updateSyncTimes
-} from "../api/syncTimeApi";
-
-const ENV = "dev03";
+type ChangeItem = { day: string; before: string; after: string; changed: boolean };
 
 export default function ConnectorPage() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
+  const connector = localConnectors.find((c) => c.id === id);
 
-  const connectorId = (id as ConnectorId) || "ob";
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [schedule, setSchedule] = useState<SyncTimes>({ ...DEFAULT_SYNC_TIMES });
+  const [pendingUpdate, setPendingUpdate] = useState<{ edited: SyncTimes; reason: string } | null>(null);
+  const [preview, setPreview] = useState<{ changes: ChangeItem[] } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-  const connector = localConnectors.find(
-    (c) => c.id === connectorId
-  )!;
-
-  const [syncTimes, setSyncTimes] =
-    useState<SyncTimes>(DEFAULT_SYNC_TIMES);
-
-  const [reason, setReason] = useState("");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-
-  function updateDay(day: Weekday, value: string) {
-    setSyncTimes((prev) => ({
-      ...prev,
-      [day]: value
-    }));
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
-    setError("");
-    setMessage("");
-
-    const errors = validateSyncTimes(syncTimes);
-
-    if (!reason) {
-      errors.push("Reason required");
-    }
-
-    if (errors.length) {
-      setError(errors.join(", "));
+  useEffect(() => {
+    if (!connector) {
+      setLoading(false);
+      setLoadError("Unknown connector");
       return;
     }
 
-    try {
-      const res = await updateSyncTimes(
-        connectorId,
-        ENV as any,
-        syncTimes,
-        reason
-      );
+    let isMounted = true;
 
-      setMessage("✅ Updated successfully");
-    } catch (err: any) {
-      setError(err.message);
+    getSyncTimes(id as ConnectorId, "dev03")
+      .then((times) => {
+        if (isMounted) setSchedule(times);
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setLoadError(err instanceof Error ? err.message : "Failed to load SyncTimes");
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, connector]);
+
+  function handlePreview(edited: SyncTimes, reason: string) {
+    const changes: ChangeItem[] = Object.keys(edited).map((day) => {
+      const d = day as keyof SyncTimes;
+      return {
+        day,
+        before: schedule[d],
+        after: edited[d],
+        changed: schedule[d] !== edited[d]
+      };
+    });
+
+    setPendingUpdate({ edited, reason });
+    setPreview({ changes });
+    setSaveResult(null);
+  }
+
+  async function handleConfirm() {
+    if (!pendingUpdate) return;
+
+    const { edited, reason } = pendingUpdate;
+
+    setSaving(true);
+    setPreview(null);
+
+    try {
+      const result = await updateSyncTimes(id as ConnectorId, "dev03", edited, reason);
+      setSchedule(edited);
+      setPendingUpdate(null);
+      setSaveResult({ ok: true, message: result.message });
+    } catch (err) {
+      setSaveResult({
+        ok: false,
+        message: err instanceof Error ? err.message : "Update failed"
+      });
+    } finally {
+      setSaving(false);
     }
   }
 
+  if (loading) return <p style={{ padding: 24 }}>Loading SyncTimes from Parameter Store…</p>;
+
+  if (!connector) {
+    return (
+      <p style={{ padding: 24, color: "red" }}>
+        Connector &quot;{id}&quot; not found. <Link to="/">← Back</Link>
+      </p>
+    );
+  }
+
   return (
-    <div>
-      <h2>{connector.displayName}</h2>
+    <section style={{ maxWidth: 620 }}>
+      <p>
+        <Link to="/">← Back to connectors</Link>
+      </p>
 
-      <form onSubmit={handleSubmit}>
-        {WEEKDAYS.map((day) => (
-          <div key={day}>
-            <label>{day}</label>
-            <input
-              value={syncTimes[day]}
-              onChange={(e) =>
-                updateDay(day, e.target.value)
-              }
-            />
-          </div>
-        ))}
+      <h2 style={{ marginTop: 8 }}>{connector.displayName}</h2>
+      <p style={{ color: "#697586", marginTop: 4 }}>
+        Parameter Store key: <code>{connector.parameterName}</code>
+      </p>
 
-        <textarea
-          placeholder="Reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
+      {loadError && (
+        <p style={{ color: "#b00020", background: "#fff3f3", padding: "8px 12px", borderRadius: 4 }}>
+          {loadError}
+        </p>
+      )}
 
-        <button type="submit">Update</button>
-      </form>
+      {saveResult && (
+        <p
+          style={{
+            color: saveResult.ok ? "#1a7f37" : "#b00020",
+            background: saveResult.ok ? "#f0fff4" : "#fff3f3",
+            padding: "8px 12px",
+            borderRadius: 4
+          }}
+        >
+          {saveResult.message}
+        </p>
+      )}
 
-      {message && <p>{message}</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
-    </div>
+      {saving && <p style={{ color: "#697586" }}>Saving to Parameter Store…</p>}
+
+      <SyncTimeEditor schedule={schedule} onPreview={handlePreview} disabled={saving} />
+
+      <PreviewModal preview={preview} onConfirm={handleConfirm} onCancel={() => setPreview(null)} />
+    </section>
   );
 }

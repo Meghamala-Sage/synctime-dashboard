@@ -1,72 +1,64 @@
-import React, {
-  createContext,
-  useContext,
-  useMemo
-} from "react";
+import React from "react";
+import { useAuth } from "./AuthContext";
 
-import type {
-  Claims,
-  HostAuth
-} from "../shared/types";
-
-export interface AuthContextValue {
-  accessToken?: string;
-  idToken?: string;
-  claims: Claims;
-  isAuthenticated: boolean;
-  login?: () => void;
-  logout?: () => void;
-}
-
-const defaultClaims: Claims = {
-  roles: ["SyncTime.Admin"],
-  permissions: ["SyncTime.Read", "SyncTime.Write"],
-  groups: []
-};
-
-const defaultAuthContext: AuthContextValue = {
-  accessToken: undefined,
-  idToken: undefined,
-  claims: defaultClaims,
-  isAuthenticated: true,
-  login: undefined,
-  logout: undefined
-};
-
-const AuthContext = createContext<AuthContextValue>(defaultAuthContext);
-
-interface AuthProviderProps {
+interface RoleGuardProps {
   children: React.ReactNode;
-
-  /**
-   * This will be supplied by Admin Portal later.
-   * For local development, it can be omitted.
-   */
-  auth?: HostAuth;
+  requiredRoles?: string[];
+  requiredPermissions?: string[];
+  fallback?: React.ReactNode;
 }
 
-export function AuthProvider({
+export function RoleGuard({
   children,
-  auth
-}: AuthProviderProps) {
-  const value = useMemo<AuthContextValue>(() => {
-    return {
-      accessToken: auth?.accessToken,
-      idToken: auth?.idToken,
-      claims: auth?.claims || defaultClaims,
-      isAuthenticated: auth?.isAuthenticated ?? true,
-      login: auth?.login,
-      logout: auth?.logout
-    };
-  }, [auth]);
+  requiredRoles = [],
+  requiredPermissions = [],
+  fallback = <div>Access Denied</div>
+}: RoleGuardProps) {
+  const { claims, isAuthenticated } = useAuth();
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const roles = claims.roles || [];
+  const permissions = claims.permissions || [];
+
+  const hasRequiredRole =
+    requiredRoles.length === 0 ||
+    requiredRoles.some((role) => roles.includes(role));
+
+  const hasRequiredPermission =
+    requiredPermissions.length === 0 ||
+    requiredPermissions.some((permission) => permissions.includes(permission));
+
+  if (!isAuthenticated || !hasRequiredRole || !hasRequiredPermission) {
+    return <>{fallback}</>;
+  }
+
+  return <>{children}</>;
 }
 
-export function useAuth(): AuthContextValue {
-  return useContext(AuthContext);
+interface CanAccessOptions {
+  claims?: {
+    roles?: string[];
+    permissions?: string[];
+    groups?: string[];
+  };
+  requiredRoles?: string[];
+  requiredPermissions?: string[];
+}
+
+export function canAccess({
+  claims,
+  requiredRoles = [],
+  requiredPermissions = []
+}: CanAccessOptions): boolean {
+  const roles = claims?.roles || [];
+  const permissions = claims?.permissions || [];
+
+  const hasRole =
+    requiredRoles.length === 0 ||
+    requiredRoles.some((role) => roles.includes(role));
+
+  const hasPermission =
+    requiredPermissions.length === 0 ||
+    requiredPermissions.some((permission) => permissions.includes(permission));
+
+  return hasRole && hasPermission;
 }

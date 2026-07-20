@@ -1,4 +1,5 @@
 const path = require("path");
+const webpack = require("webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 
 module.exports = (env = {}, argv = {}) => {
@@ -49,6 +50,14 @@ module.exports = (env = {}, argv = {}) => {
     },
 
     plugins: [
+      new webpack.DefinePlugin({
+        // Inject local API URL automatically in standalone dev mode.
+        // In MFE / production builds this is an empty string so the host
+        // shell sets window.__SYNC_TIME_API_BASE_URL__ at runtime.
+        "window.__SYNC_TIME_API_BASE_URL__": JSON.stringify(
+          !isMfe && mode === "development" ? "http://localhost:3001" : ""
+        )
+      }),
       new HtmlWebpackPlugin({
         template: "./src/index.ejs",
         inject: isMfe ? false : "body",
