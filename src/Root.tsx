@@ -11,6 +11,7 @@ export interface RootProps {
   domElementId?: string;
   authContext?: HostAuth;
   apiBaseUrl?: string;
+  embedded?: boolean;
 }
 
 // ---- Error boundary so any render crash shows a visible message ----
@@ -48,7 +49,8 @@ class AppErrorBoundary extends React.Component<{ children: React.ReactNode }, EB
 
 const Root: React.FC<RootProps> = ({
   basePath = "",
-  authContext
+  authContext,
+  embedded = false
 }) => {
   console.log("[SyncTime Dashboard] Root rendered");
 
@@ -59,11 +61,11 @@ const Root: React.FC<RootProps> = ({
           <div className="synctime-dashboard-shell">
             <header className="synctime-dashboard-header">
               <h1>SyncTime Dashboard</h1>
-              <p>Local Dev Mode</p>
+              {!embedded && <p>Standalone dashboard</p>}
             </header>
 
             <main className="synctime-dashboard-main">
-              <AppRouter basename={basePath} />
+              <AppRouter basename={basePath} embedded={embedded} />
             </main>
           </div>
         </AuthProvider>

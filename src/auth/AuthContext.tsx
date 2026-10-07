@@ -11,8 +11,8 @@ export interface AuthContextValue {
 }
 
 const defaultClaims: Claims = {
-  roles: ["SyncTime.Admin"],
-  permissions: ["SyncTime.Read", "SyncTime.Write"],
+  roles: [],
+  permissions: [],
   groups: []
 };
 
@@ -20,7 +20,7 @@ const defaultAuthContext: AuthContextValue = {
   accessToken: undefined,
   idToken: undefined,
   claims: defaultClaims,
-  isAuthenticated: true,
+  isAuthenticated: false,
   login: undefined,
   logout: undefined
 };
@@ -38,7 +38,7 @@ export function AuthProvider({ children, auth }: AuthProviderProps) {
       accessToken: auth?.accessToken,
       idToken: auth?.idToken,
       claims: auth?.claims || defaultClaims,
-      isAuthenticated: auth?.isAuthenticated ?? true,
+      isAuthenticated: auth?.isAuthenticated ?? false,
       login: auth?.login,
       logout: auth?.logout
     };

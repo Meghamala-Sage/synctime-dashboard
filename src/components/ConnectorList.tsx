@@ -49,7 +49,7 @@ export default function ConnectorList() {
   return (
     <section>
       <h2>Connectors</h2>
-      <p>Select a connector to edit its dev03 SyncTimes parameter.</p>
+      <p>Select a connector to view its sync schedule.</p>
 
       <ul>
         {connectors.map((connector: ConnectorConfig) => (

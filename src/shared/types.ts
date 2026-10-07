@@ -1,6 +1,6 @@
 export type ConnectorId = "ob" | "obbarclays" | "nordigen";
 
-export type EnvironmentId = "dev03";
+export type EnvironmentId = string;
 
 export type Weekday =
   | "Monday"

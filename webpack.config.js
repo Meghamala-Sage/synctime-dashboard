@@ -7,7 +7,7 @@ module.exports = (env = {}, argv = {}) => {
   const mode = argv.mode || "development";
 
   return {
-    entry: "./src/sage-org-synctime-dashboard.tsx",
+    entry: isMfe ? "./src/portal-entry.tsx" : "./src/sage-org-synctime-dashboard.tsx",
     mode,
     devtool: mode === "development" ? "source-map" : false,
 
@@ -16,7 +16,7 @@ module.exports = (env = {}, argv = {}) => {
       path: path.resolve(__dirname, "dist"),
       publicPath: "/",
       clean: true,
-      ...(isMfe ? { libraryTarget: "system" } : {})
+      ...(isMfe ? { library: { name: "SyncTimeDashboard", type: "window" } } : {})
     },
 
     devServer: {
@@ -50,15 +50,10 @@ module.exports = (env = {}, argv = {}) => {
     },
 
     plugins: [
-      new webpack.DefinePlugin({
-        // Inject local API URL automatically in standalone dev mode.
-        // In MFE / production builds this is an empty string so the host
-        // shell sets window.__SYNC_TIME_API_BASE_URL__ at runtime.
-        "window.__SYNC_TIME_API_BASE_URL__": JSON.stringify(
-          !isMfe && mode === "development" ? "http://localhost:3001" : ""
-        )
-      }),
-      new HtmlWebpackPlugin({
+      ...(!isMfe ? [new webpack.DefinePlugin({
+        "window.__SYNC_TIME_API_BASE_URL__": JSON.stringify(mode === "development" ? "http://localhost:3001" : "")
+      })] : []),
+      ...(!isMfe ? [new HtmlWebpackPlugin({
         template: "./src/index.ejs",
         inject: isMfe ? false : "body",
         templateParameters: {
@@ -66,7 +61,7 @@ module.exports = (env = {}, argv = {}) => {
           mfeName: "@sage-org/synctime-dashboard",
           bundleName: "sage-org-synctime-dashboard.js"
         }
-      })
+      })] : [])
     ]
   };
 };

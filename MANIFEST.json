@@ -1,0 +1,62 @@
+{
+  "repository": "C:\\Users\\meghamala.c\\source\\synctime-dashboard",
+  "base_commit": "4f58f1985f6e3099fa5445ae58ba3ca8dff7cc00",
+  "note": "Complete current files changed or added locally; no build output or dependencies included.",
+  "files": [
+    {
+      "path": "README.md",
+      "size_bytes": 1702,
+      "sha256": "28032e6edc18457894046f3d56984e4194c42d3893a6e2a2e9fd29c5db7d094c"
+    },
+    {
+      "path": "src/Root.tsx",
+      "size_bytes": 2292,
+      "sha256": "5ac5f21e102f15b458caaaa0a416aaecbe6d40608e2a4061b64c33d7d9e97233"
+    },
+    {
+      "path": "src/api/syncTimeApi.ts",
+      "size_bytes": 2443,
+      "sha256": "212094ae302a91b65fa70dc1b50342d86b95b52034f69349eb73ff8950e37d86"
+    },
+    {
+      "path": "src/auth/AuthContext.tsx",
+      "size_bytes": 1313,
+      "sha256": "513adaa0bc64e12380ffa4d06ea097072f170dbf17e34d705277759d0d7bee40"
+    },
+    {
+      "path": "src/components/ConnectorList.tsx",
+      "size_bytes": 1643,
+      "sha256": "49986a960d1dd304cd34a5f6fe14e81a41a3451bac2dfb82e8a5ce0f3c91b73a"
+    },
+    {
+      "path": "src/pages/ConnectorPage.tsx",
+      "size_bytes": 5199,
+      "sha256": "d3fa2f977fb4fe301efdbe43bc146d26033926ba9c33bba9750b7a848f383a96"
+    },
+    {
+      "path": "src/portal-entry.tsx",
+      "size_bytes": 868,
+      "sha256": "1641c66d74ee2665f4bdf40bccff258012f965811857b3c498f00fb476afe1c3"
+    },
+    {
+      "path": "src/router.tsx",
+      "size_bytes": 881,
+      "sha256": "b1c01f5f6e968efc1efe2828340ab7348f37cb29b3e9e69fd7601ff411cefdeb"
+    },
+    {
+      "path": "src/shared/types.ts",
+      "size_bytes": 1238,
+      "sha256": "a4e51c241e580d3262818ee9032b85e5e7dfafb16239efe4c6afccdf57d7b45e"
+    },
+    {
+      "path": "src/styles.css",
+      "size_bytes": 654,
+      "sha256": "64ec509bb9482b2ae3e872d8837d19635a265fb7005424c56f0ce5c18a4d962e"
+    },
+    {
+      "path": "webpack.config.js",
+      "size_bytes": 1886,
+      "sha256": "0f6228388edc99503b7d01f015f923d7ab9f5a683447c50ec9167b72bd3bd5a6"
+    }
+  ]
+}

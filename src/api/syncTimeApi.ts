@@ -1,197 +1,67 @@
-import type {
-  ConnectorConfig,
-  ConnectorId,
-  EnvironmentId,
-  EventBridgeState,
-  SyncTimes,
-  UpdateSyncTimesResponse
-} from "../shared/types";
+import type { ConnectorConfig, ConnectorId, EventBridgeState, SyncTimes } from "../shared/types";
 
-import { DEFAULT_SYNC_TIMES } from "../shared/validation";
+let apiBaseUrl = "";
+let environment = "";
+
+export function configureApi(baseUrl: string, currentEnvironment: string): void {
+  apiBaseUrl = baseUrl.replace(/\/$/, "");
+  environment = currentEnvironment;
+}
+
+function base(): string {
+  const configured = apiBaseUrl || window.__SYNC_TIME_API_BASE_URL__;
+  if (!configured) throw new Error("Sync Dashboard API is not configured");
+  return configured.replace(/\/$/, "");
+}
 
 declare global {
-  interface Window {
-    __SYNC_TIME_API_BASE_URL__?: string;
-  }
+  interface Window { __SYNC_TIME_API_BASE_URL__?: string; }
 }
 
-const API_BASE_URL: string = window.__SYNC_TIME_API_BASE_URL__ || "";
-
-export const localConnectors: ConnectorConfig[] = [
-  {
-    id: "ob",
-    displayName: "Open Banking",
-    parameterName: "/bnkc-ob-dev03/SyncTimes"
-  },
-  {
-    id: "obbarclays",
-    displayName: "OB Barclays",
-    parameterName: "/bnkc-obbarclays-dev03/SyncTimes"
-  },
-  {
-    id: "nordigen",
-    displayName: "Nordigen",
-    parameterName: "/bnkc-nordigen-dev03/SyncTimes"
-  }
-];
-
-export async function getConnectors(): Promise<ConnectorConfig[]> {
-  if (!API_BASE_URL) {
-    return localConnectors;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/connectors`);
-
-    if (!response.ok) {
-      return localConnectors;
-    }
-
-    const data = await response.json();
-
-    return Array.isArray(data.connectors)
-      ? (data.connectors as ConnectorConfig[])
-      : localConnectors;
-  } catch {
-    return localConnectors;
-  }
-}
-
-export async function getSyncTimes(
-  connector: ConnectorId,
-  environment: EnvironmentId
-): Promise<SyncTimes> {
-  if (!API_BASE_URL) {
-    return { ...DEFAULT_SYNC_TIMES };
-  }
-
-  const url = `${API_BASE_URL}/sync-times?connector=${encodeURIComponent(connector)}&environment=${encodeURIComponent(environment)}`;
-  const response = await fetch(url);
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.error || data?.message || "Failed to fetch SyncTimes");
-  }
-
-  return data.syncTimes as SyncTimes;
-}
-
-export async function updateSyncTimes(
-  connector: ConnectorId,
-  environment: EnvironmentId,
-  syncTimes: SyncTimes,
-  reason: string,
-  triggerMode: "none" | "invoke-listener" = "none"
-): Promise<UpdateSyncTimesResponse> {
-  if (!API_BASE_URL) {
-    console.log("Local mock updateSyncTimes", {
-      connector,
-      environment,
-      syncTimes,
-      reason,
-      triggerMode
-    });
-
-    return {
-      message: "Local mock: SyncTimes updated",
-      connector,
-      environment,
-      parameterName: `/bnkc-${connector}-${environment}/SyncTimes`,
-      currentValue: JSON.stringify(syncTimes),
-      triggerMode
-    };
-  }
-
-  const response = await fetch(`${API_BASE_URL}/sync-times`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      connector,
-      environment,
-      syncTimes,
-      reason,
-      triggerMode
-    })
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${base()}${path}`, {
+    ...options,
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", ...options?.headers }
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.error || data?.message || "Failed to update SyncTimes");
-  }
-
-  return data as UpdateSyncTimesResponse;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || `Request failed (${response.status})`);
+  return data as T;
 }
 
-export async function getEventBridgeState(
-  connector: ConnectorId,
-  environment: EnvironmentId
-): Promise<EventBridgeState> {
-  if (!API_BASE_URL) {
-    return { connector, environment, eventRuleName: "", isEnabled: true };
-  }
-
-  const url = `${API_BASE_URL}/eventbridge-state?connector=${encodeURIComponent(connector)}&environment=${encodeURIComponent(environment)}`;
-  const response = await fetch(url);
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.message || "Failed to fetch EventBridge state");
-  }
-
-  return data as EventBridgeState;
+export interface ConnectorState {
+  connector: ConnectorId;
+  environment: string;
+  parameterName: string;
+  syncTimes: SyncTimes;
+  version: number;
+  eventBridge: EventBridgeState | null;
 }
 
-export async function toggleEventBridge(
-  connector: ConnectorId,
-  environment: EnvironmentId,
-  enabled: boolean
-): Promise<EventBridgeState> {
-  if (!API_BASE_URL) {
-    console.log("Local mock toggleEventBridge", { connector, environment, enabled });
-    return { connector, environment, eventRuleName: "", isEnabled: enabled };
-  }
+export interface HistoryEvent {
+  changeId: string;
+  timestampUtc: string;
+  actorEmail: string;
+  connector: string;
+  action: string;
+  status: string;
+  reason: string;
+  before?: unknown;
+  after?: unknown;
+}
 
-  const response = await fetch(`${API_BASE_URL}/eventbridge-toggle`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ connector, environment, enabled })
+export const currentEnvironment = () => environment;
+export const getConnectors = async () => (await request<{ connectors: ConnectorConfig[] }>("/connectors")).connectors;
+export const getConnectorState = (id: ConnectorId) => request<ConnectorState>(`/${encodeURIComponent(id)}`);
+export const saveSchedule = (id: ConnectorId, syncTimes: SyncTimes, reason: string, expectedVersion: number) =>
+  request<ConnectorState>(`/${encodeURIComponent(id)}`, {
+    method: "PUT", body: JSON.stringify({ syncTimes, reason, expectedVersion })
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data?.message || "Failed to toggle EventBridge");
-  }
-
-  return data as EventBridgeState;
-}
-
-export const syncTimeApi = {
-  getConnectors,
-  updateSyncTimes,
-  getEventBridgeState,
-  toggleEventBridge,
-
-  getSchedule: async (): Promise<{ schedule: SyncTimes }> => ({
-    schedule: DEFAULT_SYNC_TIMES
-  }),
-
-  preview: async (data: { schedule: SyncTimes }) => ({
-    changes: Object.keys(data.schedule).map((day) => {
-      const typedDay = day as keyof SyncTimes;
-
-      return {
-        day,
-        before: DEFAULT_SYNC_TIMES[typedDay],
-        after: data.schedule[typedDay],
-        changed: DEFAULT_SYNC_TIMES[typedDay] !== data.schedule[typedDay]
-      };
-    })
-  }),
-
-  update: async (data: { schedule: SyncTimes }) =>
-    updateSyncTimes("ob", "dev03", data.schedule, "Legacy update call", "none")
-};
+export const setRuleState = (id: ConnectorId, enabled: boolean, reason: string) =>
+  request<ConnectorState>(`/${encodeURIComponent(id)}/rule-state`, {
+    method: "POST", body: JSON.stringify({ enabled, reason })
+  });
+export const getHistory = (id: ConnectorId, nextToken?: string) =>
+  request<{ events: HistoryEvent[]; nextToken?: string }>(
+    `/history?connector=${encodeURIComponent(id)}${nextToken ? `&nextToken=${encodeURIComponent(nextToken)}` : ""}`
+  );

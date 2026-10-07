@@ -1,24 +1,26 @@
 import React from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import DashboardPage from "./pages/DashboardPage";
 import ConnectorPage from "./pages/ConnectorPage";
 
 export interface AppRouterProps {
   basename?: string;
+  embedded?: boolean;
 }
 
-const AppRouter: React.FC<AppRouterProps> = ({ basename = "" }) => {
+const AppRouter: React.FC<AppRouterProps> = ({ basename = "", embedded = false }) => {
   console.log("[SyncTime Dashboard] Router rendered", { basename });
 
+  const Router = embedded ? MemoryRouter : BrowserRouter;
   return (
-    <BrowserRouter basename={basename || undefined}>
+    <Router basename={embedded ? undefined : basename || undefined}>
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/connector/:id" element={<ConnectorPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   );
 };
 

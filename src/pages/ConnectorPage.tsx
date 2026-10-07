@@ -1,225 +1,93 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-
-import type { ConnectorId, SyncTimes, EventBridgeState } from "../shared/types";
-import { localConnectors, getSyncTimes, updateSyncTimes, getEventBridgeState, toggleEventBridge } from "../api/syncTimeApi";
-import { DEFAULT_SYNC_TIMES } from "../shared/validation";
+import { Link, useParams } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
+import { getConnectorState, getHistory, saveSchedule, setRuleState, ConnectorState, HistoryEvent } from "../api/syncTimeApi";
+import type { ConnectorId, SyncTimes } from "../shared/types";
 import SyncTimeEditor from "../components/SyncTimeEditor";
 import PreviewModal from "../components/PreviewModal";
 
-type ChangeItem = { day: string; before: string; after: string; changed: boolean };
-
 export default function ConnectorPage() {
-  const { id } = useParams<{ id: string }>();
-  const connector = localConnectors.find((c) => c.id === id);
+  const { id = "" } = useParams();
+  const connector = id as ConnectorId;
+  const { claims } = useAuth();
+  const canManage = (claims.roles || []).includes("SyncTimeManage");
+  const [state, setState] = useState<ConnectorState | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState("");
+  const [pending, setPending] = useState<{ syncTimes: SyncTimes; reason: string } | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<HistoryEvent[]>([]);
+  const [nextToken, setNextToken] = useState<string | undefined>();
 
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const [schedule, setSchedule] = useState<SyncTimes>({ ...DEFAULT_SYNC_TIMES });
-  const [pendingUpdate, setPendingUpdate] = useState<{ edited: SyncTimes; reason: string } | null>(null);
-  const [preview, setPreview] = useState<{ changes: ChangeItem[] } | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveResult, setSaveResult] = useState<{ ok: boolean; message: string } | null>(null);
-  
-  // EventBridge state
-  const [eventBridgeState, setEventBridgeState] = useState<EventBridgeState | null>(null);
-  const [ebToggling, setEbToggling] = useState(false);
-  const [ebToggleResult, setEbToggleResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const refresh = () => getConnectorState(connector).then(setState).catch((e) => setError(e.message));
+  useEffect(() => { setState(null); setError(""); void refresh(); }, [id]);
 
-  useEffect(() => {
-    if (!connector) {
-      setLoading(false);
-      setLoadError("Unknown connector");
-      return;
-    }
-
-    let isMounted = true;
-
-    getSyncTimes(id as ConnectorId, "dev03")
-      .then((times) => {
-        if (isMounted) setSchedule(times);
-      })
-      .catch((err) => {
-        if (isMounted) {
-          setLoadError(err instanceof Error ? err.message : "Failed to load SyncTimes");
-        }
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
-
-    // Load EventBridge state in parallel
-    getEventBridgeState(id as ConnectorId, "dev03")
-      .then((state) => {
-        if (isMounted) setEventBridgeState(state);
-      })
-      .catch((err) => {
-        console.warn("Failed to load EventBridge state:", err);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [id, connector]);
-
-  function handlePreview(edited: SyncTimes, reason: string) {
-    const changes: ChangeItem[] = Object.keys(edited).map((day) => {
-      const d = day as keyof SyncTimes;
-      return {
-        day,
-        before: schedule[d],
-        after: edited[d],
-        changed: schedule[d] !== edited[d]
-      };
-    });
-
-    setPendingUpdate({ edited, reason });
-    setPreview({ changes });
-    setSaveResult(null);
-  }
-
-  async function handleConfirm() {
-    if (!pendingUpdate) return;
-
-    const { edited, reason } = pendingUpdate;
-
-    setSaving(true);
-    setPreview(null);
-
+  async function loadHistory(token?: string) {
     try {
-      const result = await updateSyncTimes(id as ConnectorId, "dev03", edited, reason);
-      setSchedule(edited);
-      setPendingUpdate(null);
-      setSaveResult({ ok: true, message: result.message });
-    } catch (err) {
-      setSaveResult({
-        ok: false,
-        message: err instanceof Error ? err.message : "Update failed"
-      });
-    } finally {
-      setSaving(false);
-    }
+      const result = await getHistory(connector, token);
+      setHistory(token ? [...history, ...result.events] : result.events);
+      setNextToken(result.nextToken);
+      setError("");
+    } catch (e) { setError(e instanceof Error ? e.message : "History unavailable"); }
   }
 
-  async function handleEventBridgeToggle() {
-    if (!eventBridgeState) return;
-
-    setEbToggling(true);
-    setEbToggleResult(null);
-
+  async function confirmSave() {
+    if (!pending || !state || !canManage) return;
+    setBusy(true); setError("");
     try {
-      const newState = await toggleEventBridge(
-        id as ConnectorId,
-        "dev03",
-        !eventBridgeState.isEnabled
-      );
-      setEventBridgeState(newState);
-      setEbToggleResult({
-        ok: true,
-        message: newState.isEnabled ? "EventBridge rule enabled" : "EventBridge rule disabled"
-      });
-    } catch (err) {
-      setEbToggleResult({
-        ok: false,
-        message: err instanceof Error ? err.message : "Failed to toggle EventBridge"
-      });
-    } finally {
-      setEbToggling(false);
+      const result = await saveSchedule(connector, pending.syncTimes, pending.reason, state.version);
+      setState(result); setPending(null);
+      if (showHistory) await loadHistory();
+    } catch (e) { setError(e instanceof Error ? e.message : "Save failed"); }
+    finally { setBusy(false); }
+  }
+
+  async function changeRule() {
+    if (!state?.eventBridge || !canManage || !reason.trim()) {
+      setError("Enter a reason before changing the rule state."); return;
     }
+    const enabled = !state.eventBridge.isEnabled;
+    if (!window.confirm(`${enabled ? "Enable" : "Disable"} sync for ${connector}?`)) return;
+    setBusy(true); setError("");
+    try {
+      setState(await setRuleState(connector, enabled, reason.trim()));
+      setReason("");
+      if (showHistory) await loadHistory();
+    } catch (e) { setError(e instanceof Error ? e.message : "Rule change failed"); }
+    finally { setBusy(false); }
   }
 
-  if (loading) return <p style={{ padding: 24 }}>Loading SyncTimes from Parameter Store…</p>;
-
-  if (!connector) {
-    return (
-      <p style={{ padding: 24, color: "red" }}>
-        Connector &quot;{id}&quot; not found. <Link to="/">← Back</Link>
-      </p>
-    );
-  }
-
-  return (
-    <section style={{ maxWidth: 620 }}>
-      <p>
-        <Link to="/">← Back to connectors</Link>
-      </p>
-
-      <h2 style={{ marginTop: 8 }}>{connector.displayName}</h2>
-      <p style={{ color: "#697586", marginTop: 4 }}>
-        Parameter Store key: <code>{connector.parameterName}</code>
-      </p>
-
-      {loadError && (
-        <p style={{ color: "#b00020", background: "#fff3f3", padding: "8px 12px", borderRadius: 4 }}>
-          {loadError}
-        </p>
-      )}
-
-      {/* EventBridge Toggle Section */}
-      <div style={{ background: "#f5f5f5", padding: 16, borderRadius: 8, marginTop: 20, marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <h4 style={{ margin: "0 0 4px 0" }}>Skip Sync Schedule</h4>
-            <p style={{ margin: 0, fontSize: 12, color: "#697586" }}>
-              {!eventBridgeState ? "Loading EventBridge state..." : "Disable EventBridge to stop automated syncing"}
-            </p>
-          </div>
-          <button
-            onClick={handleEventBridgeToggle}
-            disabled={ebToggling || !eventBridgeState}
-            style={{
-              padding: "8px 16px",
-              border: "2px solid transparent",
-              borderRadius: 4,
-              background: eventBridgeState?.isEnabled ? "#ffc107" : "#4CAF50",
-              color: "#000",
-              cursor: ebToggling || !eventBridgeState ? "not-allowed" : "pointer",
-              fontWeight: 600,
-              opacity: ebToggling || !eventBridgeState ? 0.6 : 1
-            }}
-          >
-            {ebToggling ? "Updating..." : eventBridgeState?.isEnabled ? "Disable Sync" : "Enable Sync"}
-          </button>
-        </div>
-        {eventBridgeState && (
-          <p style={{ fontSize: 12, color: "#555", marginTop: 8 }}>
-            Status: <strong>{eventBridgeState.isEnabled ? "✓ Enabled" : "✗ Disabled"}</strong>
-          </p>
-        )}
-        {ebToggleResult && (
-          <p
-            style={{
-              color: ebToggleResult.ok ? "#1a7f37" : "#b00020",
-              background: ebToggleResult.ok ? "#f0fff4" : "#fff3f3",
-              padding: "6px 10px",
-              borderRadius: 4,
-              fontSize: 12,
-              marginTop: 8
-            }}
-          >
-            {ebToggleResult.message}
-          </p>
-        )}
-      </div>
-
-      {saveResult && (
-        <p
-          style={{
-            color: saveResult.ok ? "#1a7f37" : "#b00020",
-            background: saveResult.ok ? "#f0fff4" : "#fff3f3",
-            padding: "8px 12px",
-            borderRadius: 4
-          }}
-        >
-          {saveResult.message}
-        </p>
-      )}
-
-      {saving && <p style={{ color: "#697586" }}>Saving to Parameter Store…</p>}
-
-      <SyncTimeEditor schedule={schedule} onPreview={handlePreview} disabled={saving} />
-
-      <PreviewModal preview={preview} onConfirm={handleConfirm} onCancel={() => setPreview(null)} />
-    </section>
-  );
+  return <section style={{ maxWidth: 780, padding: 24 }}>
+    <Link to="/">Back to connectors</Link>
+    <h2>{id} sync schedule</h2>
+    {error && <p role="alert" style={{ color: "#b00020" }}>{error}</p>}
+    {!state ? <p>Loading current AWS state...</p> : <>
+      <p>Environment: {state.environment} · Parameter: <code>{state.parameterName}</code> · Version: {state.version}</p>
+      <button onClick={() => { setShowHistory(!showHistory); if (!showHistory) void loadHistory(); }}>
+        {showHistory ? "Hide history" : "Show history"}
+      </button>
+      {showHistory && <section><h3>Change history</h3>
+        <table><thead><tr><th>UTC time</th><th>Actor</th><th>Action</th><th>Result</th><th>Reason</th><th>Change ID</th></tr></thead>
+          <tbody>{history.map((event, i) => <tr key={`${event.changeId}-${event.status}-${i}`}>
+            <td>{event.timestampUtc}</td><td>{event.actorEmail}</td><td>{event.action}</td>
+            <td>{event.status}</td><td>{event.reason}</td><td><details><summary>{event.changeId}</summary>
+              <pre>Before: {JSON.stringify(event.before)}</pre><pre>After: {JSON.stringify(event.after)}</pre>
+            </details></td>
+          </tr>)}</tbody></table>
+        {nextToken && <button onClick={() => void loadHistory(nextToken)}>More</button>}
+      </section>}
+      <h3>EventBridge rule</h3>
+      <p>{state.eventBridge ? `${state.eventBridge.eventRuleName}: ${state.eventBridge.isEnabled ? "Enabled" : "Disabled"}` : "No rule configured"}</p>
+      {canManage && state.eventBridge && <><label>Reason for rule change <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} /></label>
+        <button disabled={busy} onClick={() => void changeRule()}>{state.eventBridge.isEnabled ? "Disable sync" : "Enable sync"}</button></>}
+      {canManage ? <>
+        <SyncTimeEditor schedule={state.syncTimes} disabled={busy} onPreview={(syncTimes, changeReason) => setPending({ syncTimes, reason: changeReason })} />
+        <PreviewModal preview={pending ? { changes: Object.keys(pending.syncTimes).map((day) => ({
+          day, before: state.syncTimes[day as keyof SyncTimes], after: pending.syncTimes[day as keyof SyncTimes],
+          changed: state.syncTimes[day as keyof SyncTimes] !== pending.syncTimes[day as keyof SyncTimes]
+        })) } : null} onConfirm={() => void confirmSave()} onCancel={() => setPending(null)} />
+      </> : <p>You have read-only access.</p>}
+    </>}
+  </section>;
 }
